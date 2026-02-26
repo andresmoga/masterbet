@@ -1,0 +1,26 @@
+{
+  "name": "masterbet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sports betting comparison and tracking platform for Colombia",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "db:generate": "cd packages/database && pnpm run generate",
+    "db:migrate": "cd packages/database && pnpm run migrate",
+    "db:studio": "cd packages/database && pnpm run studio"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "prettier": "^3.2.5",
+    "turbo": "^1.12.4"
+  },
+  "packageManager": "pnpm@8.15.3",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
