@@ -41,6 +41,10 @@ pnpm-debug.log*
 !.vscode/extensions.json
 .idea
 
+# Database dumps
+dump.sql
+*.dump
+
 # Drizzle
 packages/database/migrations/*
 !packages/database/migrations/.gitkeep

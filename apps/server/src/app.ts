@@ -5,7 +5,6 @@ import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { logger } from './utils/logger';
 
 import oddsRoutes from './routes/odds.routes';
-import scraperRoutes from './routes/scraper.routes';
 
 // Import routes (will be created later)
 // import authRoutes from './routes/auth.routes';
@@ -44,7 +43,6 @@ export function createApp(): Express {
 
   // API routes
   app.use('/api/odds', oddsRoutes);
-  app.use('/api/scraper', scraperRoutes);
   // app.use('/api/auth', authRoutes);
   // app.use('/api/matches', matchesRoutes);
   // app.use('/api/bets', betsRoutes);

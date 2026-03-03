@@ -43,54 +43,105 @@ masterbet/
 ### Prerequisites
 
 - Node.js 20+
-- pnpm 8+
+- pnpm 8+ — `npm install -g pnpm`
 - PostgreSQL 16+
-- Docker (optional, for local database)
+  - Mac: `brew install postgresql && brew services start postgresql`
+  - Windows/Linux: [Download PostgreSQL](https://www.postgresql.org/download/)
+  - Or use Docker (see below)
 
 ### Installation
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   pnpm install
-   ```
+**1. Clone the repository**
 
-3. Copy environment variables:
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+git clone https://github.com/your-org/masterbet.git
+cd masterbet
+```
 
-4. Set up the database:
-   ```bash
-   # Start PostgreSQL with Docker (optional)
-   docker run --name masterbet-db -e POSTGRES_PASSWORD=password -e POSTGRES_DB=masterbet -p 5432:5432 -d postgres:16
+**2. Install dependencies**
 
-   # Generate Drizzle schemas
-   pnpm run db:generate
+```bash
+pnpm install
+```
 
-   # Run migrations
-   pnpm run db:migrate
-   ```
+**3. Set up environment variables**
 
-5. Start development servers:
-   ```bash
-   pnpm run dev
-   ```
+```bash
+cp .env.example .env
+```
 
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:4000
+Open `.env` and fill in at minimum:
+
+```env
+DATABASE_URL=postgresql://your_user:your_password@localhost:5432/masterbet
+NEXTAUTH_SECRET=your-secret   # generate with: openssl rand -base64 32
+```
+
+**4. Set up the database**
+
+Option A — Local PostgreSQL:
+
+```bash
+psql -U postgres -c "CREATE DATABASE masterbet;"
+pnpm run db:migrate
+```
+
+Option B — Docker:
+
+```bash
+docker run --name masterbet-db \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=masterbet \
+  -p 5432:5432 -d postgres:16
+
+pnpm run db:migrate
+```
+
+> Migrations are in `packages/database/migrations/` and are already tracked in the repo — collaborators never need to run `db:generate`, only `db:migrate`.
+
+### Sharing real data with collaborators
+
+If you want collaborators to work with actual data (e.g. sample odds), you can export and share a dump privately.
+
+**Export (run on your machine):**
+
+```bash
+pg_dump masterbet > dump.sql
+```
+
+**Import (run on collaborator's machine):**
+
+```bash
+psql -U postgres masterbet < dump.sql
+```
+
+> Do **not** commit `dump.sql` to GitHub, especially if it contains real user data. Share it via a private channel (Slack, email, etc.).
+
+**5. Start development servers**
+
+```bash
+pnpm run dev
+```
+
+| App | URL |
+|-----|-----|
+| Frontend (React) | http://localhost:5173 |
+| Backend API | http://localhost:4000 |
+| Health check | http://localhost:4000/health |
 
 ## Development
 
 ### Available Scripts
 
-- `pnpm run dev` - Start all apps in development mode
-- `pnpm run build` - Build all apps for production
-- `pnpm run lint` - Lint all packages
-- `pnpm run format` - Format code with Prettier
-- `pnpm run db:generate` - Generate Drizzle schema
-- `pnpm run db:migrate` - Run database migrations
-- `pnpm run db:studio` - Open Drizzle Studio
+| Command | Description |
+|---------|-------------|
+| `pnpm run dev` | Start all apps in development mode |
+| `pnpm run build` | Build all apps for production |
+| `pnpm run lint` | Lint all packages |
+| `pnpm run format` | Format code with Prettier |
+| `pnpm run db:migrate` | Run pending database migrations |
+| `pnpm run db:generate` | Generate a new migration from schema changes |
+| `pnpm run db:studio` | Open Drizzle Studio (visual DB browser) |
 
 ### Subscription Tiers
 
@@ -137,8 +188,6 @@ masterbet/
 - Token-based rate limiting
 
 ## Deployment
-
-See [SDD documentation](/.claude/plans/typed-herding-twilight.md) for detailed deployment strategies.
 
 ### Recommended Stack
 - **Frontend**: Vercel
