@@ -118,7 +118,12 @@ export class BwinScraper extends BaseScraper {
       const now = new Date();
       const timeMatch = dateTimeStr.match(/(\d{1,2}:\d{2})$/);
       if (!timeMatch) return now;
-      const parsed = new Date(`${now.toDateString()} ${timeMatch[1]}`);
+
+      const isTomorrow = /mañana/i.test(dateTimeStr);
+      const baseDate = new Date(now);
+      if (isTomorrow) baseDate.setDate(baseDate.getDate() + 1);
+
+      const parsed = new Date(`${baseDate.toDateString()} ${timeMatch[1]}`);
       return isNaN(parsed.getTime()) ? now : parsed;
     } catch {
       return new Date();

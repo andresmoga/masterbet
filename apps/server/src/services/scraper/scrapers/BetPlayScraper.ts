@@ -1,28 +1,65 @@
+import { chromium } from 'playwright';
 import { BaseScraper } from '../BaseScraper';
 import { MatchData } from '../types';
 import { logger } from '../../../utils/logger';
 
 export class BetPlayScraper extends BaseScraper {
   name = 'BetPlay';
-  url: string;
+  // BaseScraper navigates to this.url — we set it to the base URL (no hash) so the
+  // SPA loads cleanly. afterNavigate then changes the hash client-side.
+  url = 'https://betplay.com.co/apuestas';
   protected readonly leagueName: string;
+  private readonly targetHash: string; // the #sports-hub/... part for this league
 
   constructor(
     leagueName = 'Colombia - Liga BetPlay Dimayor',
-    url = 'https://betplay.com.co/apuestas#sports-hub/football/colombia/liga_betplay_dimayor'
+    fullUrl = 'https://betplay.com.co/apuestas#sports-hub/football/colombia/liga_betplay_dimayor'
   ) {
     super();
     this.leagueName = leagueName;
-    this.url = url;
+    const hashIndex = fullUrl.indexOf('#');
+    this.targetHash = hashIndex !== -1 ? fullUrl.slice(hashIndex + 1) : '';
   }
 
-  // BetPlay is a Kambi SPA — hash routing processes after domcontentloaded.
-  // Wait for networkidle so the client-side route has fully rendered.
+  // Override initBrowser to use stealth context (same as Google scraper) so BetPlay
+  // doesn't detect headless Chrome and close the connection mid-navigation.
+  protected override async initBrowser(): Promise<void> {
+    this.browser = await chromium.launch({
+      headless: process.env.SCRAPER_HEADLESS !== 'false',
+      args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'],
+    });
+    const context = await this.browser.newContext({
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      viewport: { width: 1280, height: 900 },
+      locale: 'es-CO',
+      timezoneId: 'America/Bogota',
+    });
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    });
+    this.page = await context.newPage();
+  }
+
+  // Two-step navigation: load the base URL first, then route via client-side hash change.
+  // Navigating directly to a deep hash URL triggers BetPlay's anti-bot detection and
+  // closes the page mid-navigation. Loading the shell first avoids that.
   protected override async afterNavigate(): Promise<void> {
     if (!this.page) return;
+
+    // Step 1: wait for the SPA shell to be ready (networkidle on base URL)
     await this.page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {
-      logger.warn(`${this.name}: networkidle timeout — proceeding anyway`);
+      logger.warn(`${this.name}: networkidle timeout on base load`);
     });
+
+    // Step 2: change the hash client-side so the Kambi SPA routes to this league
+    if (this.targetHash) {
+      await this.page.evaluate((h) => { window.location.hash = h; }, this.targetHash);
+      logger.info(`${this.name}: navigated to hash "#${this.targetHash}" for "${this.leagueName}"`);
+
+      // Wait for the SPA to re-render competition-specific events after hash change
+      await this.page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+      await this.page.waitForTimeout(2000);
+    }
   }
 
   protected async extractMatches(): Promise<MatchData[]> {
@@ -33,10 +70,22 @@ export class BetPlayScraper extends BaseScraper {
     const matches: MatchData[] = [];
 
     try {
-      // Wait for match list items to load
-      await this.page.waitForSelector('li.KambiBC-sandwich-filter__event-list-item', {
-        timeout: 15000,
-      });
+      // Wait for match list items — use a non-throwing wait so we can log diagnostics
+      // on timeout rather than letting the outer catch swallow the detail.
+      const appeared = await this.page
+        .waitForSelector('li.KambiBC-sandwich-filter__event-list-item', { timeout: 30000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!appeared) {
+        const currentUrl = this.page.url();
+        const title = await this.page.title().catch(() => 'unknown');
+        logger.warn(
+          `${this.name}: match items never appeared after 30s for "${this.leagueName}". ` +
+          `URL: ${currentUrl} | Title: ${title}`
+        );
+        return matches;
+      }
 
       // BetPlay is a Kambi SPA — the hash route filters events client-side.
       // Events are grouped under competition headers; we only want the group
@@ -63,7 +112,9 @@ export class BetPlayScraper extends BaseScraper {
           if (
             normalizedHeader.includes('liga betplay') ||
             normalizedHeader.includes('primera a') ||
-            normalizedHeader.includes(targetNeedle)
+            normalizedHeader.includes(targetNeedle) ||
+            normalizedHeader.includes('copa libertadores') ||
+            normalizedHeader.includes('libertadores')
           ) {
             targetGroup = group;
             break;
@@ -74,9 +125,10 @@ export class BetPlayScraper extends BaseScraper {
           matchElements = await targetGroup.$$('li.KambiBC-sandwich-filter__event-list-item');
           logger.info(`${this.name}: Filtered to ${matchElements.length} rows in "${this.leagueName}" group`);
         } else {
-          // Could not find a matching header — take all and log a warning
-          matchElements = await this.page.$$('li.KambiBC-sandwich-filter__event-list-item');
-          logger.warn(`${this.name}: No group header matched "${this.leagueName}", using all ${matchElements.length} rows`);
+          // No matching group header found — return empty to avoid cross-league contamination.
+          // (Falling back to all rows on the page risks mixing matches from other competitions.)
+          logger.warn(`${this.name}: No group header matched "${this.leagueName}" — skipping to avoid contamination`);
+          return matches;
         }
       } else {
         matchElements = await this.page.$$('li.KambiBC-sandwich-filter__event-list-item');

@@ -65,7 +65,7 @@ register(
   'CONMEBOL Libertadores',
   new GoogleLeagueScraper(
     'CONMEBOL Libertadores',
-    'https://www.google.com/search?q=conmebol+libertadores+2026+teams&hl=es&gl=co',
+    'https://www.google.com/search?q=copa+libertadores+2026+equipos+participantes&hl=es&gl=co',
     'https://www.google.com/search?q=copa+libertadores+partidos&hl=es&gl=co'
   )
 );
@@ -231,7 +231,18 @@ export function triggerLeagueScrape(slug: string): boolean {
   scrapingInProgress.add(slug);
   logger.info(`triggerLeagueScrape: starting on-demand scrape for "${slug}" (${scrapers.length} scrapers)`);
 
-  orchestrator.runScrapers(scrapers)
+  // Run Google scraper first so knownLeagueTeams is populated before bookmakers save.
+  const googleScrapers = scrapers.filter((s) => (s as { name?: string }).name === 'Google');
+  const bookmakerScrapers = scrapers.filter((s) => (s as { name?: string }).name !== 'Google');
+
+  const run = async () => {
+    if (googleScrapers.length > 0) {
+      await orchestrator.runScrapers(googleScrapers);
+    }
+    return orchestrator.runScrapers(bookmakerScrapers);
+  };
+
+  run()
     .then((results) => {
       const ok = results.filter((r) => r.success).length;
       logger.info(`triggerLeagueScrape: "${slug}" done — ${ok}/${results.length} succeeded`);
@@ -327,6 +338,34 @@ export function startScraperCron(): void {
 
   logger.info('[cron] Tiered scraper schedule started (timezone: America/Bogota)');
   logger.info('[cron] Groups: google(06:00), colombia(10/14/18/21), european(11/17/21), southAmerica(16/20/23), big5(08/15/21)');
+}
+
+/**
+ * Run a single scraper by slug + bookmaker name and return the raw result.
+ * Does NOT save to DB — only for debugging.
+ * bookmaker is matched case-insensitively against scraper.name.
+ */
+export async function debugRunScraper(slug: string, bookmaker: string): Promise<{ found: boolean; result?: unknown; error?: string }> {
+  const scrapers = leagueScraperMap.get(slug);
+  if (!scrapers || scrapers.length === 0) {
+    return { found: false, error: `No scrapers registered for slug "${slug}"` };
+  }
+
+  const target = scrapers.find(
+    (s) => (s as { name?: string }).name?.toLowerCase() === bookmaker.toLowerCase()
+  );
+
+  if (!target) {
+    const names = scrapers.map((s) => (s as { name?: string }).name ?? '?');
+    return { found: false, error: `No scraper named "${bookmaker}" for slug "${slug}". Available: ${names.join(', ')}` };
+  }
+
+  try {
+    const result = await target.scrape();
+    return { found: true, result };
+  } catch (err) {
+    return { found: true, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 // Export orchestrator for manual testing

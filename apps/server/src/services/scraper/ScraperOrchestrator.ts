@@ -2,6 +2,7 @@ import { IScraper, ScraperResult } from './types';
 import { logger } from '../../utils/logger';
 import { db, scrapedOdds, scraperLogs, teams, matches, eq, and } from '@masterbet/database';
 import { normalizeTeamName } from './teamNormalizer';
+import fuzzball from 'fuzzball';
 
 // Canonical league names — map any variant to one canonical string
 const LEAGUE_CANONICAL: Record<string, string> = {
@@ -134,15 +135,18 @@ export class ScraperOrchestrator {
       const canonicalLeague = normalizeLeague(matchData.league);
       const knownTeams = ScraperOrchestrator.knownLeagueTeams.get(canonicalLeague);
       if (knownTeams && knownTeams.size > 0) {
-        const homeKnown = [...knownTeams].some(
-          (t) => normalizeTeamName(t).toLowerCase() === normalizedHome.toLowerCase()
-        );
-        const awayKnown = [...knownTeams].some(
-          (t) => normalizeTeamName(t).toLowerCase() === normalizedAway.toLowerCase()
-        );
+        // Use partial_ratio so "O'Higgins" matches "CD O'Higgins", etc.
+        const isKnown = (name: string) =>
+          [...knownTeams].some(
+            (t) => fuzzball.partial_ratio(name.toLowerCase(), normalizeTeamName(t).toLowerCase()) >= 85
+          );
+
+        const homeKnown = isKnown(normalizedHome);
+        const awayKnown = isKnown(normalizedAway);
+
         if (!homeKnown || !awayKnown) {
           logger.warn(
-            `${bookmaker}: rejected "${normalizedHome} vs ${normalizedAway}" — teams not in "${canonicalLeague}" known list`
+            `${bookmaker}: rejected "${normalizedHome} vs ${normalizedAway}" — not in "${canonicalLeague}" known list (${knownTeams.size} teams)`
           );
           return;
         }
@@ -208,18 +212,50 @@ export class ScraperOrchestrator {
     }
   }
 
+  // Fuzzy threshold for partial_ratio: 88 catches prefix matches ("Juventud" →
+  // "Juventud de las Piedras") and suffix-only differences ("Carabobo" →
+  // "Carabobo FC") without creating false positives on short common words.
+  private readonly FUZZY_THRESHOLD = 88;
+
   private async findOrCreateTeam(teamName: string): Promise<string> {
-    // Schema uses canonicalName, not name
-    const existing = await db
+    // 1. Exact match
+    const exact = await db
       .select()
       .from(teams)
       .where(eq(teams.canonicalName, teamName))
       .limit(1);
 
-    if (existing.length > 0) {
-      return existing[0].id;
+    if (exact.length > 0) return exact[0].id;
+
+    // 2. Fuzzy match against all existing teams.
+    //    partial_ratio scores substrings highly, so "Juventud" scores ~100
+    //    against "Juventud de las Piedras", and "Carabobo" against "Carabobo FC".
+    const allTeams = await db.select().from(teams);
+
+    let bestId: string | null = null;
+    let bestScore = 0;
+    let bestName = '';
+
+    for (const team of allTeams) {
+      const score = fuzzball.partial_ratio(
+        teamName.toLowerCase(),
+        team.canonicalName.toLowerCase()
+      );
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = team.id;
+        bestName = team.canonicalName;
+      }
     }
 
+    if (bestId && bestScore >= this.FUZZY_THRESHOLD) {
+      logger.info(
+        `Team fuzzy-matched: "${teamName}" → "${bestName}" (score: ${bestScore}) — reusing existing record`
+      );
+      return bestId;
+    }
+
+    // 3. No match — create a new team record
     const [newTeam] = await db
       .insert(teams)
       .values({

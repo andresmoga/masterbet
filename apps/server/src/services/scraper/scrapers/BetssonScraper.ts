@@ -105,6 +105,8 @@ export class BetssonScraper extends BaseScraper {
     try {
       // e.g. "Mañana  7:00 p. m." or "hoy  7:00 p. m."
       const now = new Date();
+      const isTomorrow = /mañana/i.test(dateTimeStr);
+
       const cleanTime = dateTimeStr
         .replace(/\u00a0/g, ' ')
         .replace('p. m.', 'PM')
@@ -113,7 +115,10 @@ export class BetssonScraper extends BaseScraper {
         .replace(/hoy/i, '')
         .trim();
 
-      const parsed = new Date(`${now.toDateString()} ${cleanTime}`);
+      const baseDate = new Date(now);
+      if (isTomorrow) baseDate.setDate(baseDate.getDate() + 1);
+
+      const parsed = new Date(`${baseDate.toDateString()} ${cleanTime}`);
       return isNaN(parsed.getTime()) ? now : parsed;
     } catch {
       return new Date();

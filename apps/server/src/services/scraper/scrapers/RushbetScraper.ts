@@ -110,7 +110,27 @@ export class RushbetScraper extends BaseScraper {
   private parseMatchDate(dateStr: string, timeStr: string): Date {
     try {
       // timeStr is 24h format: "19:00"
+      // dateStr is Spanish day abbreviation: "lun", "mar", "mié", "jue", "vie", "sáb", "dom"
+      const DAY_MAP: Record<string, number> = {
+        dom: 0, lun: 1, mar: 2, mié: 3, mie: 3, jue: 4, vie: 5, sáb: 6, sab: 6,
+      };
+
       const now = new Date();
+      const normalizedDay = dateStr.toLowerCase().trim().replace(/[.\s]/g, '');
+      const targetDow = DAY_MAP[normalizedDay];
+
+      if (targetDow !== undefined) {
+        // Find next (or same-day) occurrence of targetDow
+        const currentDow = now.getDay();
+        let daysAhead = targetDow - currentDow;
+        if (daysAhead < 0) daysAhead += 7;
+        const matchDate = new Date(now);
+        matchDate.setDate(now.getDate() + daysAhead);
+        const parsed = new Date(`${matchDate.toDateString()} ${timeStr}`);
+        return isNaN(parsed.getTime()) ? now : parsed;
+      }
+
+      // Fallback: use today's date with the time
       const parsed = new Date(`${now.toDateString()} ${timeStr}`);
       return isNaN(parsed.getTime()) ? now : parsed;
     } catch {

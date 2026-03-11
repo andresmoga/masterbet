@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import { db, matches, teams, scrapedOdds, eq, and, alias } from '@masterbet/database';
+import { db, matches, teams, scrapedOdds, scraperLogs, eq, and, alias, desc } from '@masterbet/database';
 import { normalizeTeamName } from '../services/scraper/teamNormalizer';
-import { triggerLeagueScrape } from '../jobs/scraperCron';
+import { BOOKMAKER_TEAM_ALIASES } from '../services/scraper/teamBookmakerMap';
+import { triggerLeagueScrape, debugRunScraper } from '../jobs/scraperCron';
 
 // Canonical league names — map any scraped variant to one canonical string
 const LEAGUE_CANONICAL: Record<string, string> = {
@@ -142,17 +143,156 @@ export async function getOddsComparison(req: Request, res: Response) {
       };
     }
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    // Show matches that haven't started yet, plus a 90-min grace window for live matches.
+    const cutoff = new Date(Date.now() - 90 * 60 * 1000);
 
     const data = Array.from(matchMap.values()).filter(
-      (m) => !m.matchDate || m.matchDate >= startOfToday
+      (m) => !m.matchDate || m.matchDate >= cutoff
     );
 
     res.json({ data });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch odds comparison' });
   }
+}
+
+export async function getScraperStatus(_req: Request, res: Response) {
+  try {
+    // ── 1. Recent scraper runs (per bookmaker, most recent only) ──────────────
+    const logs = await db
+      .select()
+      .from(scraperLogs)
+      .orderBy(desc(scraperLogs.createdAt))
+      .limit(200);
+
+    const latestLog = new Map<string, typeof logs[0]>();
+    for (const log of logs) {
+      const key = log.bookmaker ?? 'unknown';
+      if (!latestLog.has(key)) latestLog.set(key, log);
+    }
+
+    const scrapers = Array.from(latestLog.values()).map((l) => ({
+      bookmaker: l.bookmaker ?? 'unknown',
+      status: l.status ?? 'unknown',
+      matchesFound: l.matchesFound,
+      error: l.errorMessage ?? null,
+      lastRun: l.createdAt,
+    }));
+    scrapers.sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'error' ? -1 : 1;
+      return a.bookmaker.localeCompare(b.bookmaker);
+    });
+
+    // ── 2. Coverage: which bookmakers have odds per league (upcoming matches) ─
+    // Tells you exactly which bookmaker × league combinations are missing.
+    const homeTeam = alias(teams, 'home_team');
+    const awayTeam = alias(teams, 'away_team');
+    const oddRows = await db
+      .select({
+        league: matches.league,
+        matchDate: matches.matchDate,
+        homeTeam: homeTeam.canonicalName,
+        awayTeam: awayTeam.canonicalName,
+        bookmaker: scrapedOdds.bookmaker,
+        scrapedAt: scrapedOdds.scrapedAt,
+      })
+      .from(matches)
+      .innerJoin(homeTeam, eq(matches.homeTeamId, homeTeam.id))
+      .innerJoin(awayTeam, eq(matches.awayTeamId, awayTeam.id))
+      .innerJoin(
+        scrapedOdds,
+        and(eq(scrapedOdds.matchId, matches.id), eq(scrapedOdds.isLatest, true))
+      )
+      .orderBy(matches.matchDate);
+
+    // Filter to upcoming only
+    const upcomingRows = oddRows.filter(
+      (r) => !r.matchDate || r.matchDate >= startOfToday
+    );
+
+    // Group: league → bookmaker → match count
+    const coverage: Record<string, Record<string, { matches: number; lastScraped: Date | null }>> = {};
+    for (const row of upcomingRows) {
+      const league = normalizeLeague(row.league) ?? 'Unknown';
+      const bm = row.bookmaker ?? 'unknown';
+      if (!coverage[league]) coverage[league] = {};
+      if (!coverage[league][bm]) coverage[league][bm] = { matches: 0, lastScraped: null };
+      coverage[league][bm].matches += 1;
+      const scraped = row.scrapedAt ? new Date(row.scrapedAt) : null;
+      if (scraped && (!coverage[league][bm].lastScraped || scraped > coverage[league][bm].lastScraped!)) {
+        coverage[league][bm].lastScraped = scraped;
+      }
+    }
+
+    res.json({ scrapers, coverage, total: scrapers.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch scraper status' });
+  }
+}
+
+export async function getTeamMap(_req: Request, res: Response) {
+  try {
+    // ── All DB teams ──────────────────────────────────────────────────────────
+    const dbTeams = await db.select().from(teams).orderBy(teams.canonicalName);
+
+    // Build canonical → DB id map
+    const dbTeamByCanonical = new Map<string, string>();
+    for (const t of dbTeams) {
+      dbTeamByCanonical.set(t.canonicalName.toLowerCase(), t.id);
+    }
+
+    // ── Alias table: flat rows for easy auditing ───────────────────────────────
+    const aliasRows = Object.entries(BOOKMAKER_TEAM_ALIASES).map(([canonical, aliases]) => {
+      const dbId = dbTeamByCanonical.get(canonical.toLowerCase()) ?? null;
+      // Trace each alias through normalizeTeamName to confirm it resolves correctly
+      const aliasChecks = aliases.map((a) => ({
+        alias: a,
+        resolvesTo: normalizeTeamName(a),
+        ok: normalizeTeamName(a) === canonical,
+      }));
+      return {
+        canonical,
+        dbId,
+        inDb: !!dbId,
+        aliases: aliasChecks,
+      };
+    });
+
+    // ── DB teams with no alias entry (created by scrapers, not in the alias table) ─
+    const mappedCanonicals = new Set(
+      Object.keys(BOOKMAKER_TEAM_ALIASES).map((k) => k.toLowerCase())
+    );
+    const unmapped = dbTeams
+      .filter((t) => !mappedCanonicals.has(t.canonicalName.toLowerCase()))
+      .map((t) => ({ id: t.id, canonicalName: t.canonicalName }));
+
+    res.json({
+      aliasTable: aliasRows,
+      unmappedDbTeams: unmapped,
+      summary: {
+        aliasEntries: aliasRows.length,
+        dbTeams: dbTeams.length,
+        unmappedInDb: unmapped.length,
+        brokenAliases: aliasRows.flatMap((r) => r.aliases.filter((a) => !a.ok)).length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch team map' });
+  }
+}
+
+export async function debugScraper(req: Request, res: Response) {
+  const slug = req.query.league as string | undefined;
+  const bookmaker = req.query.bookmaker as string | undefined;
+
+  if (!slug || !bookmaker) {
+    res.status(400).json({ error: 'Missing ?league= and ?bookmaker= parameters' });
+    return;
+  }
+
+  // This can take 30-60s — increase client timeout if testing via browser
+  const result = await debugRunScraper(slug, bookmaker);
+  res.json(result);
 }
 
 export function triggerScrape(req: Request, res: Response) {

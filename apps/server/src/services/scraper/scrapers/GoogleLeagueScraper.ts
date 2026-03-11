@@ -1,3 +1,4 @@
+import { chromium } from 'playwright';
 import { BaseScraper } from '../BaseScraper';
 import { MatchData } from '../types';
 import { logger } from '../../../utils/logger';
@@ -16,6 +17,33 @@ export class GoogleLeagueScraper extends BaseScraper {
     this.fixturesUrl = fixturesUrl;
   }
 
+  // Override initBrowser to use a stealth context that bypasses Google bot detection
+  protected override async initBrowser(): Promise<void> {
+    this.browser = await chromium.launch({
+      headless: process.env.SCRAPER_HEADLESS !== 'false',
+      args: [
+        '--no-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-dev-shm-usage',
+      ],
+    });
+
+    const context = await this.browser.newContext({
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      viewport: { width: 1280, height: 800 },
+      locale: 'es-CO',
+      timezoneId: 'America/Bogota',
+    });
+
+    // Hide navigator.webdriver — the main signal Google uses to detect headless Chrome
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    });
+
+    this.page = await context.newPage();
+  }
+
   // Google renders everything via JS — wait for network to settle after navigation
   protected override async afterNavigate(): Promise<void> {
     if (!this.page) return;
@@ -27,11 +55,10 @@ export class GoogleLeagueScraper extends BaseScraper {
   protected async extractMatches(): Promise<MatchData[]> {
     if (!this.page) throw new Error('Page not initialized');
 
-    // ── Phase 1: extract team names from standings ───────────────────────────
-    const teams = await this.extractTeamsFromPage();
-    if (teams.size > 0) {
-      ScraperOrchestrator.updateKnownTeams(this.leagueName, teams);
-      logger.info(`${this.name}: registered ${teams.size} teams for "${this.leagueName}"`);
+    // ── Phase 1: extract team names from standings (best-effort supplement) ──
+    const standingsTeams = await this.extractTeamsFromPage();
+    if (standingsTeams.size > 0) {
+      logger.info(`${this.name}: found ${standingsTeams.size} teams on standings page for "${this.leagueName}"`);
     } else {
       logger.warn(`${this.name}: no teams found on standings page for "${this.leagueName}"`);
     }
@@ -48,13 +75,26 @@ export class GoogleLeagueScraper extends BaseScraper {
         logger.warn(`${this.name}: networkidle timeout on fixtures page`);
       });
 
-      // Try to find match rows — Google sports panels use a few different patterns
       const fixtureMatches = await this.extractFixturesFromPage();
       matches.push(...fixtureMatches);
 
       logger.info(`${this.name}: extracted ${matches.length} upcoming fixtures for "${this.leagueName}"`);
     } catch (error) {
       logger.error(`${this.name}: fixtures page failed`, error);
+    }
+
+    // ── Build known-teams from fixtures + standings ──────────────────────────
+    // Fixture teams are the ground truth: every team in an upcoming match belongs
+    // to this league. Supplement with standings teams for broader coverage.
+    const knownTeams = new Set<string>(standingsTeams);
+    for (const match of matches) {
+      if (match.homeTeam) knownTeams.add(match.homeTeam);
+      if (match.awayTeam) knownTeams.add(match.awayTeam);
+    }
+
+    if (knownTeams.size > 0) {
+      ScraperOrchestrator.updateKnownTeams(this.leagueName, knownTeams);
+      logger.info(`${this.name}: registered ${knownTeams.size} known teams for "${this.leagueName}" (${matches.length} from fixtures, ${standingsTeams.size} from standings)`);
     }
 
     return matches;
