@@ -17,8 +17,8 @@ interface MatchComparison {
   odds: Record<string, BookmakerOdds>;
 }
 
-async function fetchOddsComparison(): Promise<MatchComparison[]> {
-  const res = await fetch('/api/odds/comparison');
+async function fetchOddsComparison(leagueSlug: string): Promise<MatchComparison[]> {
+  const res = await fetch(`/api/odds/comparison?league=${leagueSlug}`);
   if (!res.ok) throw new Error('Failed to fetch odds');
   const json = await res.json();
   return json.data;
@@ -51,10 +51,10 @@ function groupByLeague(data: MatchComparison[]) {
   return map;
 }
 
-export function OddsComparison() {
+export function OddsComparison({ leagueSlug }: { leagueSlug: string }) {
   const { data, isLoading, isError, dataUpdatedAt } = useQuery({
-    queryKey: ['odds-comparison'],
-    queryFn: fetchOddsComparison,
+    queryKey: ['odds-comparison', leagueSlug],
+    queryFn: () => fetchOddsComparison(leagueSlug),
     refetchInterval: 5 * 60 * 1000,
   });
 

@@ -40,11 +40,45 @@ function App() {
                 <div className="p-5 max-w-full">
                   <div className="mb-5">
                     <h1 className="text-xl font-bold text-foreground">Liga BetPlay Dimayor</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      Comparación de cuotas en tiempo real · Colombia
-                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Colombia</p>
                   </div>
-                  <OddsComparison />
+                  <OddsComparison leagueSlug="liga-betplay" />
+                </div>
+              }
+            />
+<Route
+              path="/comparar/futbol/sudamericana"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">CONMEBOL Sudamericana</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Sudamérica</p>
+                  </div>
+                  <OddsComparison leagueSlug="sudamericana" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/libertadores"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">Copa Libertadores</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Sudamérica</p>
+                  </div>
+                  <OddsComparison leagueSlug="libertadores" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/champions"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">UEFA Champions League</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Europa</p>
+                  </div>
+                  <OddsComparison leagueSlug="champions" />
                 </div>
               }
             />

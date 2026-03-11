@@ -2,13 +2,27 @@ import { Request, Response } from 'express';
 import { db, matches, teams, scrapedOdds, eq, and, alias } from '@masterbet/database';
 import { normalizeTeamName } from '../services/scraper/teamNormalizer';
 
-// Canonical league names — same map as in ScraperOrchestrator
+// Canonical league names — map any scraped variant to one canonical string
 const LEAGUE_CANONICAL: Record<string, string> = {
   'colombia - primera a': 'Colombia - Liga BetPlay Dimayor',
   'colombia primera a': 'Colombia - Liga BetPlay Dimayor',
   'primera a colombia': 'Colombia - Liga BetPlay Dimayor',
   'colombia - liga betplay dimayor': 'Colombia - Liga BetPlay Dimayor',
   'liga betplay dimayor': 'Colombia - Liga BetPlay Dimayor',
+'conmebol sudamericana': 'CONMEBOL Sudamericana',
+  'sudamericana': 'CONMEBOL Sudamericana',
+  'conmebol libertadores': 'CONMEBOL Libertadores',
+  'copa libertadores': 'CONMEBOL Libertadores',
+  'uefa champions league': 'UEFA Champions League',
+  'champions league': 'UEFA Champions League',
+};
+
+// Map URL slug → canonical league name for filtering
+const SLUG_TO_LEAGUE: Record<string, string> = {
+  'liga-betplay': 'Colombia - Liga BetPlay Dimayor',
+'sudamericana': 'CONMEBOL Sudamericana',
+  'libertadores': 'CONMEBOL Libertadores',
+  'champions': 'UEFA Champions League',
 };
 
 function normalizeLeague(league: string | null): string | null {
@@ -18,6 +32,9 @@ function normalizeLeague(league: string | null): string | null {
 
 export async function getOddsComparison(req: Request, res: Response) {
   try {
+    const leagueSlug = req.query.league as string | undefined;
+    const leagueFilter = leagueSlug ? SLUG_TO_LEAGUE[leagueSlug] : undefined;
+
     const homeTeam = alias(teams, 'home_team');
     const awayTeam = alias(teams, 'away_team');
 
@@ -69,7 +86,12 @@ export async function getOddsComparison(req: Request, res: Response) {
       odds: Record<string, { home: number | null; draw: number | null; away: number | null; over25: number | null; under25: number | null }>;
     }>();
 
-    for (const row of rows) {
+    // Filter rows by league if a slug was provided
+    const filteredRows = leagueFilter
+      ? rows.filter((r) => normalizeLeague(r.league) === leagueFilter)
+      : rows;
+
+    for (const row of filteredRows) {
       // Normalize team names at query time so existing DB rows with slightly
       // different spellings (e.g. "Boyaca Chicó" vs "Boyacá Chicó FC") still merge
       const canonicalHome = normalizeTeamName(row.homeTeam);
@@ -103,7 +125,14 @@ export async function getOddsComparison(req: Request, res: Response) {
       };
     }
 
-    res.json({ data: Array.from(matchMap.values()) });
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const data = Array.from(matchMap.values()).filter(
+      (m) => !m.matchDate || m.matchDate >= startOfToday
+    );
+
+    res.json({ data });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch odds comparison' });
   }

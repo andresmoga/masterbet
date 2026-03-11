@@ -59,10 +59,17 @@ export abstract class BaseScraper implements IScraper {
         timeout: parseInt(process.env.SCRAPER_TIMEOUT || '30000'),
       });
 
-      const matches = await this.extractMatches();
+      const allMatches = await this.extractMatches();
+
+      // Keep only matches from today onwards — discard anything already finished
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const matches = allMatches.filter((m) => m.matchDate >= startOfToday);
 
       const duration = Date.now() - startTime;
-      logger.info(`Scrape completed for ${this.name}: ${matches.length} matches found in ${duration}ms`);
+      logger.info(
+        `Scrape completed for ${this.name}: ${matches.length}/${allMatches.length} matches kept (today+future) in ${duration}ms`
+      );
 
       return {
         bookmaker: this.name,

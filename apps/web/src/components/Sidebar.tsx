@@ -188,9 +188,9 @@ function LeagueLink({ item }: { item: LeagueItem }) {
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 const LEAGUES: LeagueItem[] = [
   { id: 'liga-betplay', label: 'Liga BetPlay Colombia', href: '/comparar/futbol/liga-betplay' },
-  { id: 'copa-colombia', label: 'Copa Colombia', soon: true },
-  { id: 'sudamericana', label: 'Sudamericana', soon: true },
-  { id: 'libertadores', label: 'Copa Libertadores', soon: true },
+{ id: 'sudamericana', label: 'Sudamericana', href: '/comparar/futbol/sudamericana' },
+  { id: 'libertadores', label: 'Copa Libertadores', href: '/comparar/futbol/libertadores' },
+  { id: 'champions', label: 'Champions League', href: '/comparar/futbol/champions' },
 ];
 
 export function Sidebar() {
