@@ -4,7 +4,17 @@ import { logger } from '../../../utils/logger';
 
 export class RushbetScraper extends BaseScraper {
   name = 'Rushbet';
-  url = 'https://www.rushbet.co/?page=sportsbook#filter/football/colombia/liga_betplay_dimayor';
+  url: string;
+  protected readonly leagueName: string;
+
+  constructor(
+    leagueName = 'Colombia - Liga BetPlay Dimayor',
+    url = 'https://www.rushbet.co/?page=sportsbook#filter/football/colombia/liga_betplay_dimayor'
+  ) {
+    super();
+    this.leagueName = leagueName;
+    this.url = url;
+  }
 
   protected async extractMatches(): Promise<MatchData[]> {
     if (!this.page) {
@@ -73,7 +83,7 @@ export class RushbetScraper extends BaseScraper {
             homeTeam,
             awayTeam,
             matchDate: this.parseMatchDate(dateStr, timeStr),
-            league: 'Colombia - Liga BetPlay Dimayor',
+            league: this.leagueName,
             odds: [
               {
                 bookmaker: this.name,

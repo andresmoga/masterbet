@@ -4,7 +4,17 @@ import { logger } from '../../../utils/logger';
 
 export class BetanoScraper extends BaseScraper {
   name = 'Betano';
-  url = 'https://www.betano.com/sport/futbol';
+  url: string;
+  protected readonly leagueName: string;
+
+  constructor(
+    leagueName = 'Colombia - Liga BetPlay Dimayor',
+    url = 'https://www.betano.co/sport/futbol/colombia/categoria-primera-a/16940/'
+  ) {
+    super();
+    this.leagueName = leagueName;
+    this.url = url;
+  }
 
   protected async extractMatches(): Promise<MatchData[]> {
     if (!this.page) {
@@ -49,7 +59,7 @@ export class BetanoScraper extends BaseScraper {
               homeTeam,
               awayTeam,
               matchDate: new Date(),
-              league: 'Colombia - Liga BetPlay Dimayor',
+              league: this.leagueName,
               odds: [
                 {
                   bookmaker: this.name,

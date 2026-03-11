@@ -5,6 +5,17 @@ import { logger } from '../../../utils/logger';
 export class CodereScraper extends BaseScraper {
   name = 'Codere';
   url = 'https://m.codere.com.co/deportesCol/#/EventoPage';
+  protected readonly leagueName: string;
+  protected readonly sidebarLabel: string;
+
+  constructor(
+    leagueName = 'Colombia - Liga BetPlay Dimayor',
+    sidebarLabel = 'Primera A'
+  ) {
+    super();
+    this.leagueName = leagueName;
+    this.sidebarLabel = sidebarLabel;
+  }
 
   // Spanish month abbreviations → English for Date parsing
   private readonly monthMap: Record<string, string> = {
@@ -21,6 +32,20 @@ export class CodereScraper extends BaseScraper {
     const matches: MatchData[] = [];
 
     try {
+      // Click the league in the left nav if not the default
+      if (this.sidebarLabel !== 'Primera A') {
+        await this.page.waitForSelector('highlight-item', { timeout: 15000 });
+        const items = await this.page.$$('highlight-item');
+        for (const item of items) {
+          const text = await item.$eval('p', (el) => el.textContent?.trim() ?? '').catch(() => '');
+          if (text === this.sidebarLabel) {
+            await item.click();
+            await this.page.waitForTimeout(2000);
+            break;
+          }
+        }
+      }
+
       await this.page.waitForSelector('div.game-row', { timeout: 20000 });
 
       const matchElements = await this.page.$$('div.game-row');
@@ -74,7 +99,7 @@ export class CodereScraper extends BaseScraper {
             homeTeam,
             awayTeam,
             matchDate: this.parseMatchDate(dateTimeStr),
-            league: 'Colombia - Primera A',
+            league: this.leagueName,
             odds: [
               {
                 bookmaker: this.name,

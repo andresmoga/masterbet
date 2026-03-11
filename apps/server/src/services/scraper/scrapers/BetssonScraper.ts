@@ -4,7 +4,17 @@ import { logger } from '../../../utils/logger';
 
 export class BetssonScraper extends BaseScraper {
   name = 'Betsson';
-  url = 'https://www.betsson.co/apuestas-deportivas/futbol/colombia/colombia-primera-a?tab=liveAndUpcoming';
+  url: string;
+  protected readonly leagueName: string;
+
+  constructor(
+    leagueName = 'Colombia - Liga BetPlay Dimayor',
+    url = 'https://www.betsson.co/apuestas-deportivas/futbol/colombia/colombia-primera-a?tab=liveAndUpcoming'
+  ) {
+    super();
+    this.leagueName = leagueName;
+    this.url = url;
+  }
 
   protected async extractMatches(): Promise<MatchData[]> {
     if (!this.page) {
@@ -67,7 +77,7 @@ export class BetssonScraper extends BaseScraper {
             homeTeam,
             awayTeam,
             matchDate: this.parseMatchDate(dateTimeStr),
-            league: 'Colombia - Primera A',
+            league: this.leagueName,
             odds: [
               {
                 bookmaker: this.name,

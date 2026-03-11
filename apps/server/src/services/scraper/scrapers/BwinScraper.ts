@@ -4,7 +4,17 @@ import { logger } from '../../../utils/logger';
 
 export class BwinScraper extends BaseScraper {
   name = 'bwin';
-  url = 'https://www.bwin.co/es/sports/f%C3%BAtbol-4/apuestas/colombia-45/primera-a-apertura-102161';
+  url: string;
+  protected readonly leagueName: string;
+
+  constructor(
+    leagueName = 'Colombia - Liga BetPlay Dimayor',
+    url = 'https://www.bwin.co/es/sports/f%C3%BAtbol-4/apuestas/colombia-45/primera-a-apertura-102161'
+  ) {
+    super();
+    this.leagueName = leagueName;
+    this.url = url;
+  }
 
   protected async extractMatches(): Promise<MatchData[]> {
     if (!this.page) {
@@ -78,7 +88,7 @@ export class BwinScraper extends BaseScraper {
             homeTeam,
             awayTeam,
             matchDate: this.parseMatchDate(dateTimeStr),
-            league: 'Colombia - Primera A',
+            league: this.leagueName,
             odds: [
               {
                 bookmaker: this.name,

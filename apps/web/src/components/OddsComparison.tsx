@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 
 interface BookmakerOdds {
   home: number | null;
@@ -52,11 +53,25 @@ function groupByLeague(data: MatchComparison[]) {
 }
 
 export function OddsComparison({ leagueSlug }: { leagueSlug: string }) {
-  const { data, isLoading, isError, dataUpdatedAt } = useQuery({
+  const triggeredRef = useRef(false);
+
+  const { data, isLoading, isError, dataUpdatedAt, refetch } = useQuery({
     queryKey: ['odds-comparison', leagueSlug],
     queryFn: () => fetchOddsComparison(leagueSlug),
-    refetchInterval: 5 * 60 * 1000,
+    // Poll every 10s while waiting for scrape results, slow down once data is loaded
+    refetchInterval: (query) =>
+      !query.state.data || query.state.data.length === 0 ? 10_000 : 5 * 60 * 1000,
   });
+
+  // Trigger an on-demand scrape the first time this league page is visited
+  useEffect(() => {
+    if (triggeredRef.current) return;
+    triggeredRef.current = true;
+
+    fetch(`/api/odds/scrape?league=${leagueSlug}`, { method: 'POST' })
+      .then(() => refetch())
+      .catch(() => { /* scrape endpoint unreachable — cron will still run */ });
+  }, [leagueSlug, refetch]);
 
   if (isLoading) {
     return (
@@ -83,9 +98,10 @@ export function OddsComparison({ leagueSlug }: { leagueSlug: string }) {
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="text-center space-y-2">
-          <p className="text-muted-foreground">No hay partidos disponibles aún</p>
-          <p className="text-muted-foreground/60 text-sm">Los scrapers están recolectando datos...</p>
+        <div className="text-center space-y-3">
+          <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground">Recolectando cuotas...</p>
+          <p className="text-muted-foreground/60 text-sm">Esto puede tardar hasta 2 minutos la primera vez</p>
         </div>
       </div>
     );

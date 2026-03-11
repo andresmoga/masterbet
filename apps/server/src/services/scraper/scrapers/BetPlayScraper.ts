@@ -4,7 +4,26 @@ import { logger } from '../../../utils/logger';
 
 export class BetPlayScraper extends BaseScraper {
   name = 'BetPlay';
-  url = 'https://betplay.com.co/apuestas#sports-hub/football/colombia/liga_betplay_dimayor';
+  url: string;
+  protected readonly leagueName: string;
+
+  constructor(
+    leagueName = 'Colombia - Liga BetPlay Dimayor',
+    url = 'https://betplay.com.co/apuestas#sports-hub/football/colombia/liga_betplay_dimayor'
+  ) {
+    super();
+    this.leagueName = leagueName;
+    this.url = url;
+  }
+
+  // BetPlay is a Kambi SPA — hash routing processes after domcontentloaded.
+  // Wait for networkidle so the client-side route has fully rendered.
+  protected override async afterNavigate(): Promise<void> {
+    if (!this.page) return;
+    await this.page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {
+      logger.warn(`${this.name}: networkidle timeout — proceeding anyway`);
+    });
+  }
 
   protected async extractMatches(): Promise<MatchData[]> {
     if (!this.page) {
@@ -19,8 +38,50 @@ export class BetPlayScraper extends BaseScraper {
         timeout: 15000,
       });
 
-      const matchElements = await this.page.$$('li.KambiBC-sandwich-filter__event-list-item');
-      logger.info(`${this.name}: Found ${matchElements.length} match rows`);
+      // BetPlay is a Kambi SPA — the hash route filters events client-side.
+      // Events are grouped under competition headers; we only want the group
+      // whose header matches our target league.  Walk all groups and collect
+      // elements only from the matching one (fall back to all if none found).
+      const groups = await this.page.$$('[class*="KambiBC-event-group"]');
+
+      let matchElements: Awaited<ReturnType<typeof this.page.$$>>;
+
+      if (groups.length > 0) {
+        const targetNeedle = this.leagueName.toLowerCase();
+
+        let targetGroup = null;
+        for (const group of groups) {
+          const headerText = await group
+            .$eval('[class*="header"], [class*="Header"], [class*="title"], h1, h2, h3', (el) =>
+              el.textContent?.trim() ?? ''
+            )
+            .catch(() => '');
+
+          logger.debug(`${this.name}: group header "${headerText}"`);
+
+          const normalizedHeader = headerText.toLowerCase();
+          if (
+            normalizedHeader.includes('liga betplay') ||
+            normalizedHeader.includes('primera a') ||
+            normalizedHeader.includes(targetNeedle)
+          ) {
+            targetGroup = group;
+            break;
+          }
+        }
+
+        if (targetGroup) {
+          matchElements = await targetGroup.$$('li.KambiBC-sandwich-filter__event-list-item');
+          logger.info(`${this.name}: Filtered to ${matchElements.length} rows in "${this.leagueName}" group`);
+        } else {
+          // Could not find a matching header — take all and log a warning
+          matchElements = await this.page.$$('li.KambiBC-sandwich-filter__event-list-item');
+          logger.warn(`${this.name}: No group header matched "${this.leagueName}", using all ${matchElements.length} rows`);
+        }
+      } else {
+        matchElements = await this.page.$$('li.KambiBC-sandwich-filter__event-list-item');
+        logger.info(`${this.name}: Found ${matchElements.length} match rows (no group containers)`);
+      }
 
       for (const matchEl of matchElements) {
         try {
@@ -80,7 +141,7 @@ export class BetPlayScraper extends BaseScraper {
             homeTeam,
             awayTeam,
             matchDate: this.parseMatchDate(dateStr, timeStr),
-            league: 'Colombia - Liga BetPlay Dimayor',
+            league: this.leagueName,
             odds: [
               {
                 bookmaker: this.name,

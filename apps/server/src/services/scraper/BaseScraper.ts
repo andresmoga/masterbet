@@ -59,6 +59,9 @@ export abstract class BaseScraper implements IScraper {
         timeout: parseInt(process.env.SCRAPER_TIMEOUT || '30000'),
       });
 
+      // Allow subclasses to do extra waiting / setup after navigation
+      await this.afterNavigate();
+
       const allMatches = await this.extractMatches();
 
       // Keep only matches from today onwards — discard anything already finished
@@ -92,6 +95,9 @@ export abstract class BaseScraper implements IScraper {
       await this.closeBrowser();
     }
   }
+
+  // Override in subclasses to do extra waiting/setup after page.goto
+  protected async afterNavigate(): Promise<void> {}
 
   protected abstract extractMatches(): Promise<MatchData[]>;
 }

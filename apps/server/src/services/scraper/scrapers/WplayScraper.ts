@@ -4,7 +4,17 @@ import { logger } from '../../../utils/logger';
 
 export class WplayScraper extends BaseScraper {
   name = 'Wplay';
-  url = 'https://apuestas.wplay.co/es/PrimeraAColombia';
+  url: string;
+  protected readonly leagueName: string;
+
+  constructor(
+    leagueName = 'Colombia - Liga BetPlay Dimayor',
+    url = 'https://apuestas.wplay.co/es/PrimeraAColombia'
+  ) {
+    super();
+    this.leagueName = leagueName;
+    this.url = url;
+  }
 
   protected async extractMatches(): Promise<MatchData[]> {
     if (!this.page) {
@@ -71,7 +81,7 @@ export class WplayScraper extends BaseScraper {
             homeTeam: raw.homeTeam,
             awayTeam: raw.awayTeam,
             matchDate: this.parseMatchDate(raw.date, raw.time),
-            league: 'Colombia - Primera A',
+            league: this.leagueName,
             odds: [
               {
                 bookmaker: this.name,
@@ -93,7 +103,7 @@ export class WplayScraper extends BaseScraper {
             homeTeam: raw.homeTeam,
             awayTeam: raw.awayTeam,
             matchDate: this.parseMatchDate(raw.date, raw.time),
-            league: 'Colombia - Primera A',
+            league: this.leagueName,
             odds: [
               {
                 bookmaker: this.name,

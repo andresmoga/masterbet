@@ -188,9 +188,16 @@ function LeagueLink({ item }: { item: LeagueItem }) {
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 const LEAGUES: LeagueItem[] = [
   { id: 'liga-betplay', label: 'Liga BetPlay Colombia', href: '/comparar/futbol/liga-betplay' },
-{ id: 'sudamericana', label: 'Sudamericana', href: '/comparar/futbol/sudamericana' },
   { id: 'libertadores', label: 'Copa Libertadores', href: '/comparar/futbol/libertadores' },
   { id: 'champions', label: 'Champions League', href: '/comparar/futbol/champions' },
+  { id: 'europa-league', label: 'Europa League', href: '/comparar/futbol/europa-league' },
+  { id: 'conference-league', label: 'Conference League', href: '/comparar/futbol/conference-league' },
+  { id: 'premier-league', label: 'Premier League', href: '/comparar/futbol/premier-league' },
+  { id: 'la-liga', label: 'La Liga', href: '/comparar/futbol/la-liga' },
+  { id: 'serie-a', label: 'Serie A', href: '/comparar/futbol/serie-a' },
+  { id: 'bundesliga', label: 'Bundesliga', href: '/comparar/futbol/bundesliga' },
+  { id: 'ligue-1', label: 'Ligue 1', href: '/comparar/futbol/ligue-1' },
+  { id: 'world-cup-2026', label: 'Copa del Mundo 2026', href: '/comparar/futbol/world-cup-2026' },
 ];
 
 export function Sidebar() {

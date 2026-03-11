@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { db, matches, teams, scrapedOdds, eq, and, alias } from '@masterbet/database';
 import { normalizeTeamName } from '../services/scraper/teamNormalizer';
+import { triggerLeagueScrape } from '../jobs/scraperCron';
 
 // Canonical league names — map any scraped variant to one canonical string
 const LEAGUE_CANONICAL: Record<string, string> = {
@@ -9,20 +10,36 @@ const LEAGUE_CANONICAL: Record<string, string> = {
   'primera a colombia': 'Colombia - Liga BetPlay Dimayor',
   'colombia - liga betplay dimayor': 'Colombia - Liga BetPlay Dimayor',
   'liga betplay dimayor': 'Colombia - Liga BetPlay Dimayor',
-'conmebol sudamericana': 'CONMEBOL Sudamericana',
-  'sudamericana': 'CONMEBOL Sudamericana',
   'conmebol libertadores': 'CONMEBOL Libertadores',
   'copa libertadores': 'CONMEBOL Libertadores',
   'uefa champions league': 'UEFA Champions League',
   'champions league': 'UEFA Champions League',
+  'uefa europa league': 'UEFA Europa League',
+  'europa league': 'UEFA Europa League',
+  'uefa conference league': 'UEFA Conference League',
+  'conference league': 'UEFA Conference League',
+  'premier league': 'Premier League',
+  'la liga': 'La Liga',
+  'laliga': 'La Liga',
+  'serie a': 'Serie A',
+  'bundesliga': 'Bundesliga',
+  'ligue 1': 'Ligue 1',
+  'copa del mundo 2026': 'Copa del Mundo 2026',
 };
 
 // Map URL slug → canonical league name for filtering
 const SLUG_TO_LEAGUE: Record<string, string> = {
   'liga-betplay': 'Colombia - Liga BetPlay Dimayor',
-'sudamericana': 'CONMEBOL Sudamericana',
   'libertadores': 'CONMEBOL Libertadores',
   'champions': 'UEFA Champions League',
+  'europa-league': 'UEFA Europa League',
+  'conference-league': 'UEFA Conference League',
+  'premier-league': 'Premier League',
+  'la-liga': 'La Liga',
+  'serie-a': 'Serie A',
+  'bundesliga': 'Bundesliga',
+  'ligue-1': 'Ligue 1',
+  'world-cup-2026': 'Copa del Mundo 2026',
 };
 
 function normalizeLeague(league: string | null): string | null {
@@ -136,4 +153,14 @@ export async function getOddsComparison(req: Request, res: Response) {
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch odds comparison' });
   }
+}
+
+export function triggerScrape(req: Request, res: Response) {
+  const slug = req.query.league as string | undefined;
+  if (!slug) {
+    res.status(400).json({ error: 'Missing ?league= parameter' });
+    return;
+  }
+  const started = triggerLeagueScrape(slug);
+  res.json({ status: started ? 'scraping' : 'already_running' });
 }

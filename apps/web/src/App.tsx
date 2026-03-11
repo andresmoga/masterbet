@@ -46,18 +46,6 @@ function App() {
                 </div>
               }
             />
-<Route
-              path="/comparar/futbol/sudamericana"
-              element={
-                <div className="p-5 max-w-full">
-                  <div className="mb-5">
-                    <h1 className="text-xl font-bold text-foreground">CONMEBOL Sudamericana</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Sudamérica</p>
-                  </div>
-                  <OddsComparison leagueSlug="sudamericana" />
-                </div>
-              }
-            />
             <Route
               path="/comparar/futbol/libertadores"
               element={
@@ -79,6 +67,102 @@ function App() {
                     <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Europa</p>
                   </div>
                   <OddsComparison leagueSlug="champions" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/europa-league"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">UEFA Europa League</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Europa</p>
+                  </div>
+                  <OddsComparison leagueSlug="europa-league" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/conference-league"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">UEFA Conference League</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Europa</p>
+                  </div>
+                  <OddsComparison leagueSlug="conference-league" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/premier-league"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">Premier League</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Inglaterra</p>
+                  </div>
+                  <OddsComparison leagueSlug="premier-league" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/la-liga"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">La Liga</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · España</p>
+                  </div>
+                  <OddsComparison leagueSlug="la-liga" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/serie-a"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">Serie A</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Italia</p>
+                  </div>
+                  <OddsComparison leagueSlug="serie-a" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/bundesliga"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">Bundesliga</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Alemania</p>
+                  </div>
+                  <OddsComparison leagueSlug="bundesliga" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/ligue-1"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">Ligue 1</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Francia</p>
+                  </div>
+                  <OddsComparison leagueSlug="ligue-1" />
+                </div>
+              }
+            />
+            <Route
+              path="/comparar/futbol/world-cup-2026"
+              element={
+                <div className="p-5 max-w-full">
+                  <div className="mb-5">
+                    <h1 className="text-xl font-bold text-foreground">Copa del Mundo 2026</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Comparación de cuotas en tiempo real · Mundial</p>
+                  </div>
+                  <OddsComparison leagueSlug="world-cup-2026" />
                 </div>
               }
             />
